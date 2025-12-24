@@ -1,0 +1,18 @@
+# nginx-service.yaml
+
+# 1. Service Object
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-public-service
+spec:
+  # Selects the Pods that have the label 'app: web-nginx'
+  selector:
+    app: web-nginx
+  # The LoadBalancer type makes Kubernetes provision a public Load Balancer in AWS
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80        # Port that the Load Balancer will listen on from the Internet
+      targetPort: 80    # Port where Nginx is listening inside the container
+      name: http-metrics

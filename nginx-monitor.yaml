@@ -1,0 +1,21 @@
+# nginx-monitor.yaml
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nginx-service-monitor
+  labels:
+    # This label connects the ServiceMonitor to the Prometheus you installed (the Helm Chart uses this label)
+    release: prometheus
+spec:
+  # The ServiceMonitor must be in the same namespace as your Nginx (default: default)
+  namespaceSelector:
+    matchNames:
+      - default
+  # The selector searches for the Nginx Service
+  selector:
+    matchLabels:
+      app: web-nginx
+  endpoints:
+  - port: http-metrics  # Names the port for Prometheus
+    path: /metrics      # The exporter's default endpoint

@@ -1,0 +1,45 @@
+# nginx-deployment.yaml
+
+# 1. Deployment Object
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-web-deployment
+  labels:
+    app: web-nginx
+spec:
+  # Ensures that 3 copies of your Pod will be running
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-nginx
+  template:
+    metadata:
+      labels:
+        app: web-nginx
+    spec:
+      containers:
+      - name: meu-nginx-container
+        # We use the official Nginx image
+        image: nginx:alpine 
+        ports:
+        - containerPort: 80
+        resources:
+          # Resource limitation so that Worker Nodes (t2.small) do not get overloaded
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+          requests:
+            cpu: "100m"
+      # NEW CONTAINER: The Prometheus Exporter
+      - name: nginx-exporter
+        image: nginx/nginx-prometheus-exporter:1.1.0 # Official Exporter
+        args: ["-nginx.scrape-uri", "http://localhost:80/stub_status"] # Address where it fetches metrics from
+        ports:
+        - containerPort: 9113 # Port that exposes the metrics /metrics
+        resources:
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
+          requests:
+            cpu: "50m"
