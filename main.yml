@@ -1,0 +1,71 @@
+# .github/workflows/main.yml
+
+name: EKS CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main # Triggers the pipeline on every push to the 'main' branch
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  
+jobs:
+  build_scan_and_deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 1. AWS Authentication
+    # New OIDC Authentication Step (main.yml)
+    - name: Configure AWS Credentials (OIDC)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: [arn:aws:iam::779310096771:role/GithubActionsCI-CD-Role]
+        aws-region: ${{ us-east-1 }}
+        role-session-name: github-actions-cicd-session
+
+    # 2. Login to ECR (for Push/Pull)
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      
+    # 3. Build Docker Image
+    - name: Build Docker Image
+      id: build-image
+      env:
+        IMAGE_TAG: ${{ github.sha }} # Use the commit SHA as a unique tag
+      run: |
+        docker build -t $ECR_REPOSITORY:latest .
+        docker tag $ECR_REPOSITORY:latest $ECR_URI:$IMAGE_TAG
+        echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+    
+    # 4. Security Scanning (Trivy - Integrating Step 7)
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.ECR_URI }}:${{ steps.build-image.outputs.image_tag }}
+        format: 'table'
+        exit-code: '1' # Fails the pipeline
+        ignore-unfixed: true
+        severity: 'CRITICAL,HIGH' # Only the most critical
+
+    # 5. Push to ECR
+    - name: Push Docker Image to ECR
+      env:
+        IMAGE_TAG: ${{ steps.build-image.outputs.image_tag }}
+      run: |
+        docker push $ECR_URI:$IMAGE_TAG
+
+    # 6. Deploy to EKS
+    # ... (Install kubectl and Get Kubeconfig Steps)
+
+    - name: Deploy to Kubernetes
+      env:
+        K8S_IMAGE: ${{ env.ECR_REPOSITORY }}:${{ steps.build-image.outputs.image_tag }}
+      run: |
+        # 1. Update the Deployment image
+        kubectl set image deployment/nginx-web-deployment meu-nginx-container=$K8S_IMAGE
